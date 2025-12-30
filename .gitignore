@@ -56,7 +56,9 @@ dkms.conf
 
 
 #STM32Cube specific files
+*.project
 *.cproject
 *.mxproject
 *.settings
 *.ioc
+rfid-locker/Debug/
