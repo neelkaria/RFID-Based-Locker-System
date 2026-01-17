@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 #include "pn532.h"
+#include "pn532_stm32f1.h"
 
 const uint8_t PN532_ACK[] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
 const uint8_t PN532_FRAME_START[] = {0x00, 0x00, 0xFF};
@@ -70,7 +71,7 @@ int PN532_WriteFrame(PN532* pn532, uint8_t* data, uint16_t length) {
     }
     frame[length + 5] = ~checksum & 0xFF;
     frame[length + 6] = PN532_POSTAMBLE;
-    if (pn532->write_data(frame, length + 7) != PN532_STATUS_OK) {
+    if (pn532->write_data(pn532, frame, length + 7) != PN532_STATUS_OK) {
         return PN532_STATUS_ERROR;
     }
     return PN532_STATUS_OK;
@@ -85,7 +86,7 @@ int PN532_ReadFrame(PN532* pn532, uint8_t* response, uint16_t length) {
     uint8_t buff[PN532_FRAME_MAX_LENGTH + 7];
     uint8_t checksum = 0;
     // Read frame with expected length of data.
-    pn532->read_data(buff, length + 7);
+    pn532->read_data(pn532, buff, length + 7);
     // Swallow all the 0x00 values that preceed 0xFF.
     uint8_t offset = 0;
     while (buff[offset] == 0x00) {
@@ -158,22 +159,22 @@ int PN532_CallFunction(
     }
     // Send frame and wait for response.
     if (PN532_WriteFrame(pn532, buff, params_length + 2) != PN532_STATUS_OK) {
-        pn532->wakeup();
+        pn532->wakeup(pn532);
         pn532->log("Trying to wakeup");
         return PN532_STATUS_ERROR;
     }
-    if (!pn532->wait_ready(timeout)) {
+    if (!pn532->wait_ready(pn532, timeout)) {
         return PN532_STATUS_ERROR;
     }
     // Verify ACK response and wait to be ready for function response.
-    pn532->read_data(buff, sizeof(PN532_ACK));
+    pn532->read_data(pn532, buff, sizeof(PN532_ACK));
     for (uint8_t i = 0; i < sizeof(PN532_ACK); i++) {
         if (PN532_ACK[i] != buff[i]) {
             pn532->log("Did not receive expected ACK from PN532!");
             return PN532_STATUS_ERROR;
         }
     }
-    if (!pn532->wait_ready(timeout)) {
+    if (!pn532->wait_ready(pn532, timeout)) {
         return PN532_STATUS_ERROR;
     }
     // Read response bytes.

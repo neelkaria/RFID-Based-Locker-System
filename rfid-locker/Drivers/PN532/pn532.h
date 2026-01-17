@@ -32,6 +32,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "pn532_typedefs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -240,15 +241,6 @@ extern "C" {
 // Other Error Definitions
 #define PN532_STATUS_ERROR                                              (-1)
 #define PN532_STATUS_OK                                                 (0)
-
-typedef struct _PN532 {
-    int (*reset)(void);
-    int (*read_data)(uint8_t* data, uint16_t count);
-    int (*write_data)(uint8_t *data, uint16_t count);
-    bool (*wait_ready)(uint32_t timeout);
-    int (*wakeup)(void);
-    void (*log)(const char* log);
-} PN532;
 
 
 int PN532_WriteFrame(PN532* pn532, uint8_t* data, uint16_t length);

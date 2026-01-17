@@ -89,6 +89,8 @@ void HardFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_HardFault_IRQn 0 */
+      GPIOB->ODR ^= GPIO_PIN_12;  // Toggle pin
+      for(volatile int i=0; i<500000; i++); // crude delay
     /* USER CODE END W1_HardFault_IRQn 0 */
   }
 }

@@ -29,7 +29,9 @@
 
 #include "stm32f4xx_hal.h"
 #include "main.h"
+#include <string.h>
 #include "pn532_stm32f1.h"
+#include "pn532.h"
 
 #define _SPI_STATREAD                   0x02
 #define _SPI_DATAWRITE                  0x01
@@ -45,7 +47,7 @@
 
 extern SPI_HandleTypeDef hspi1;
 extern I2C_HandleTypeDef hi2c1;
-
+struct PN532;
 /**************************************************************************
  * Reset and Log implements
  **************************************************************************/
@@ -69,6 +71,8 @@ void PN532_Init(PN532* pn532) {
 /**************************************************************************
  * End: Reset and Log implements
  **************************************************************************/
+
+#ifdef PN532_USE_SPI
 /**************************************************************************
  * SPI
  **************************************************************************/
@@ -82,98 +86,114 @@ uint8_t reverse_bit(uint8_t num) {
     return result;
 }
 
-void spi_rw(uint8_t* data, uint8_t count) {
-    HAL_GPIO_WritePin(CS0_GPIO_Port, CS0_Pin, GPIO_PIN_RESET);
+void spi_rw(PN532* dev, uint8_t* data, uint8_t count) {
+
+    HAL_GPIO_WritePin(dev->module_hal.CS_Port, dev->module_hal.CS_Pin, GPIO_PIN_RESET);
     HAL_Delay(1);
 #ifndef _SPI_HARDWARE_LSB
     for (uint8_t i = 0; i < count; i++) {
         data[i] = reverse_bit(data[i]);
     }
-    HAL_SPI_TransmitReceive(&hspi1, data, data, count, _SPI_TIMEOUT);
+#endif
+
+    HAL_SPI_TransmitReceive(dev->module_hal.hspi, data, data, count, _SPI_TIMEOUT);
+
+#ifndef _SPI_HARDWARE_LSB
     for (uint8_t i = 0; i < count; i++) {
         data[i] = reverse_bit(data[i]);
     }
+
 #else
-    HAL_SPI_TransmitReceive(&hspi1, data, data, count, _SPI_TIMEOUT);
 #endif
     HAL_Delay(1);
-    HAL_GPIO_WritePin(CS0_GPIO_Port, CS0_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(dev->module_hal.CS_Port, dev->module_hal.CS_Pin, GPIO_PIN_SET);
+
 }
 
-int PN532_SPI_ReadData(uint8_t* data, uint16_t count) {
-    uint8_t frame[count + 1];
+int PN532_SPI_ReadData(PN532* dev, uint8_t* data, uint16_t count) {
+    uint8_t *frame = dev->module_hal.buffer;
     frame[0] = _SPI_DATAREAD;
+
     HAL_Delay(5);
-    spi_rw(frame, count + 1);
-    for (uint8_t i = 0; i < count; i++) {
-        data[i] = frame[i + 1];
-    }
+
+    spi_rw(dev, frame, count + 1);
+
+    memcpy(data, &frame[1], count);
+
     return PN532_STATUS_OK;
 }
 
-int PN532_SPI_WriteData(uint8_t *data, uint16_t count) {
-    uint8_t frame[count + 1];
+int PN532_SPI_WriteData(PN532* dev, uint8_t *data, uint16_t count) {
+    uint8_t *frame = dev->module_hal.buffer;
     frame[0] = _SPI_DATAWRITE;
     for (uint8_t i = 0; i < count; i++) {
         frame[i + 1] = data[i];
     }
-    spi_rw(frame, count + 1);
+    spi_rw(dev, frame, count + 1);
     return PN532_STATUS_OK;
 }
 
-bool PN532_SPI_WaitReady(uint32_t timeout) {
-    uint8_t status[] = {_SPI_STATREAD, 0x00};
+bool PN532_SPI_WaitReady(PN532* dev, uint32_t timeout) {
+	uint8_t status[] = {_SPI_STATREAD, 0x00};
+
     uint32_t tickstart = HAL_GetTick();
     while (HAL_GetTick() - tickstart < timeout) {
         HAL_Delay(10);
-        spi_rw(status, sizeof(status));
+        spi_rw(dev, status, sizeof(status));
         if (status[1] == _SPI_READY) {
             return true;
         } else {
             HAL_Delay(5);
         }
     }
+
     return false;
 }
 
-int PN532_SPI_Wakeup(void) {
+int PN532_SPI_Wakeup(PN532* dev) {
     // Send any special commands/data to wake up PN532
     uint8_t data[] = {0x00};
     HAL_Delay(1000);
-    HAL_GPIO_WritePin(CS0_GPIO_Port, CS0_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(dev->module_hal.CS_Port, dev->module_hal.CS_Pin, GPIO_PIN_RESET);
     HAL_Delay(2); // T_osc_start
-    spi_rw(data, 1);
+    spi_rw(dev, data, 1);
     HAL_Delay(1000);
+    HAL_GPIO_WritePin(dev->module_hal.CS_Port, dev->module_hal.CS_Pin, GPIO_PIN_SET);
+
     return PN532_STATUS_OK;
 }
 
-void PN532_SPI_Init(PN532* pn532) {
+void PN532_SPI_Init(PN532* dev) {
     // init the pn532 functions
-    pn532->reset =  PN532_Reset;
-    pn532->read_data = PN532_SPI_ReadData;
-    pn532->write_data = PN532_SPI_WriteData;
-    pn532->wait_ready = PN532_SPI_WaitReady;
-    pn532->wakeup = PN532_SPI_Wakeup;
-    pn532->log = PN532_Log;
+    dev->reset =  PN532_Reset;
+    dev->read_data = PN532_SPI_ReadData;
+    dev->write_data = PN532_SPI_WriteData;
+    dev->wait_ready = PN532_SPI_WaitReady;
+    dev->wakeup = PN532_SPI_Wakeup;
+    dev->log = PN532_Log;
 
     // hardware wakeup
-    pn532->wakeup();
+    dev->wakeup(dev);
 }
 /**************************************************************************
  * End: SPI
  **************************************************************************/
+#endif
+
+
+#ifdef PN532_USE_I2C
 /**************************************************************************
  * I2C
  **************************************************************************/
-void i2c_read(uint8_t* data, uint16_t count) {
-    HAL_I2C_Master_Receive(&hi2c1, _I2C_ADDRESS, data, count, _I2C_TIMEOUT);
+void i2c_read(PN532* dev, uint8_t* data, uint16_t count) {
+    HAL_I2C_Master_Receive(dev->module_hal.hi2c ,_I2C_ADDRESS, data, count, _I2C_TIMEOUT);
 }
 
-void i2c_write(uint8_t* data, uint16_t count) {
+void i2c_write(PN532* dev, uint8_t* data, uint16_t count) {
     HAL_I2C_Master_Transmit(&hi2c1, _I2C_ADDRESS, data, count, _I2C_TIMEOUT);
 }
 
-int PN532_I2C_ReadData(uint8_t* data, uint16_t count) {
+int PN532_I2C_ReadData(PN532* dev, uint8_t* data, uint16_t count) {
     uint8_t status[] = {0x00};
     uint8_t frame[count + 1];
     i2c_read(status, sizeof(status));
@@ -187,12 +207,12 @@ int PN532_I2C_ReadData(uint8_t* data, uint16_t count) {
     return PN532_STATUS_OK;
 }
 
-int PN532_I2C_WriteData(uint8_t *data, uint16_t count) {
-    i2c_write(data, count);
+int PN532_I2C_WriteData(PN532* dev, uint8_t *data, uint16_t count) {
+    i2c_write(dev, data, count);
     return PN532_STATUS_OK;
 }
 
-bool PN532_I2C_WaitReady(uint32_t timeout) {
+bool PN532_I2C_WaitReady(PN532* dev, uint32_t timeout) {
     uint8_t status[] = {0x00};
     uint32_t tickstart = HAL_GetTick();
     while (HAL_GetTick() - tickstart < timeout) {
@@ -206,29 +226,30 @@ bool PN532_I2C_WaitReady(uint32_t timeout) {
     return false;
 }
 
-int PN532_I2C_Wakeup(void) {
+int PN532_I2C_Wakeup(PN532* dev) {
     // TODO
-    HAL_GPIO_WritePin(PN532_REQ_GPIO_Port, PN532_REQ_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(dev->module_hal.IRQ_Port, dev->module_hal.IRQ_Pin, GPIO_PIN_SET);
     HAL_Delay(100);
-    HAL_GPIO_WritePin(PN532_REQ_GPIO_Port, PN532_REQ_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(dev->module_hal.IRQ_Port, dev->module_hal.IRQ_Pin, GPIO_PIN_RESET);
     HAL_Delay(100);
-    HAL_GPIO_WritePin(PN532_REQ_GPIO_Port, PN532_REQ_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(dev->module_hal.IRQ_Port, dev->module_hal.IRQ_Pin, GPIO_PIN_SET);
     HAL_Delay(500);
     return PN532_STATUS_OK;
 }
 
-void PN532_I2C_Init(PN532* pn532) {
+void PN532_I2C_Init(PN532* dev) {
     // init the pn532 functions
-    pn532->reset =  PN532_Reset;
-    pn532->read_data = PN532_I2C_ReadData;
-    pn532->write_data = PN532_I2C_WriteData;
-    pn532->wait_ready = PN532_I2C_WaitReady;
-    pn532->wakeup = PN532_I2C_Wakeup;
-    pn532->log = PN532_Log;
+    dev->reset =  PN532_Reset;
+    dev->read_data = PN532_I2C_ReadData;
+    dev->write_data = PN532_I2C_WriteData;
+    dev->wait_ready = PN532_I2C_WaitReady;
+    dev->wakeup = PN532_I2C_Wakeup;
+    dev->log = PN532_Log;
 
     // hardware wakeup
-    pn532->wakeup();
+    dev->wakeup(dev);
 }
 /**************************************************************************
  * End: I2C
  **************************************************************************/
+#endif
