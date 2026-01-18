@@ -64,8 +64,11 @@ void ITM_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-//PN532 nfc_modules[PN532_MAX_INSTANCES] = { \
-//	{	.module_hal = { .hspi = &hspi1, .CS_Port = GPIOA, .CS_Pin = GPIO_PIN_3	}}};
+PN532 nfc_modules[PN532_MAX_INSTANCES] = { \
+	{	.module_hal = { .hspi = &hspi1, .CS_Port = CS0_GPIO_Port, .CS_Pin = CS0_Pin	}},
+	{	.module_hal = { .hspi = &hspi1, .CS_Port = CS1_GPIO_Port, .CS_Pin = CS1_Pin }},
+	//{	.module_hal = { .hspi = &hspi1, .CS_Port = CS2_GPIO_Port, .CS_Pin = CS2_Pin }}
+};
 /* USER CODE END 0 */
 
 /**
@@ -109,20 +112,22 @@ int main(void)
 	printf(" Debugging Works\n");
 
 	printf("Hello!\r\n");
-	PN532 pn532[1] = {
-			{.module_hal = { .hspi = &hspi1, .CS_Port = CS0_GPIO_Port, .CS_Pin = CS0_Pin}}
-	};
+
 	// PN532_SPI_Init(&pn532);
-	PN532_SPI_Init(&pn532[0]);
-	PN532_GetFirmwareVersion(&pn532[0], buff);
-	if (PN532_GetFirmwareVersion(&pn532[0], buff) == PN532_STATUS_OK) {
-		printf("Found PN532 with firmware version: %d.%d\r\n", buff[1],
-				buff[2]);
-		HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_RESET);
-	} else {
-		return -1;
+	for (uint8_t i = 0; i < PN532_MAX_INSTANCES; i++)
+	{
+		PN532_SPI_Init(&nfc_modules[i]);
+
+		if (PN532_GetFirmwareVersion(&nfc_modules[i], buff) == PN532_STATUS_OK) {
+			printf("Found PN532 with firmware version: %d.%d\r\n", buff[1],
+					buff[2]);
+			HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_RESET);
+			PN532_SamConfiguration(&nfc_modules[i]);
+		} else {
+			return -1;
+		}
 	}
-	PN532_SamConfiguration(&pn532[0]);
+
 	printf("Waiting for RFID/NFC card...\r\n");
   /* USER CODE END 2 */
 
@@ -133,8 +138,10 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 		// Check if a card is available to read
-		uid_len = PN532_ReadPassiveTarget(&pn532[0], uid, PN532_MIFARE_ISO14443A,
-				1000);
+		for (uint8_t i = 0; i < PN532_MAX_INSTANCES; i++)
+		{
+		uid_len = PN532_ReadPassiveTarget(&nfc_modules[i], uid, PN532_MIFARE_ISO14443A,
+				100);
 		if (uid_len == PN532_STATUS_ERROR) {
 			printf(".");
 		} else {
@@ -145,6 +152,7 @@ int main(void)
 				printf("%02x ", uid[i]);
 			}
 			printf("\r\n");
+		}
 		}
 	}
   /* USER CODE END 3 */
@@ -313,35 +321,32 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOA, LD1_Pin|CS0_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CS0_GPIO_Port, CS0_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, PN532_RST_Pin|PN532_REQ_Pin|TEST_Pin|HARD_FAULT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, PN532_RST_Pin|PN532_REQ_Pin|TEST_Pin|CS1_Pin
-                          |GPIO_PIN_12|GPIO_PIN_13, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, CS1_Pin|CS2_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin : LD1_Pin */
-  GPIO_InitStruct.Pin = LD1_Pin;
+  /*Configure GPIO pins : LD1_Pin CS0_Pin */
+  GPIO_InitStruct.Pin = LD1_Pin|CS0_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD1_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : CS0_Pin */
-  GPIO_InitStruct.Pin = CS0_Pin;
+  /*Configure GPIO pins : PN532_RST_Pin PN532_REQ_Pin TEST_Pin HARD_FAULT_Pin */
+  GPIO_InitStruct.Pin = PN532_RST_Pin|PN532_REQ_Pin|TEST_Pin|HARD_FAULT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CS0_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PN532_RST_Pin PN532_REQ_Pin TEST_Pin CS1_Pin
-                           PB12 PB13 */
-  GPIO_InitStruct.Pin = PN532_RST_Pin|PN532_REQ_Pin|TEST_Pin|CS1_Pin
-                          |GPIO_PIN_12|GPIO_PIN_13;
+  /*Configure GPIO pins : CS1_Pin CS2_Pin */
+  GPIO_InitStruct.Pin = CS1_Pin|CS2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 

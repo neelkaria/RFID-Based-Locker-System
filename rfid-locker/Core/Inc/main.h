@@ -69,6 +69,10 @@ void Error_Handler(void);
 #define TEST_GPIO_Port GPIOB
 #define CS1_Pin GPIO_PIN_10
 #define CS1_GPIO_Port GPIOB
+#define HARD_FAULT_Pin GPIO_PIN_12
+#define HARD_FAULT_GPIO_Port GPIOB
+#define CS2_Pin GPIO_PIN_13
+#define CS2_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
