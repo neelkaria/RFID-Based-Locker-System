@@ -153,11 +153,11 @@ bool PN532_SPI_WaitReady(PN532* dev, uint32_t timeout) {
 int PN532_SPI_Wakeup(PN532* dev) {
     // Send any special commands/data to wake up PN532
     uint8_t data[] = {0x00};
-    HAL_Delay(1000);
+    HAL_Delay(50);
     HAL_GPIO_WritePin(dev->module_hal.CS_Port, dev->module_hal.CS_Pin, GPIO_PIN_RESET);
     HAL_Delay(2); // T_osc_start
     spi_rw(dev, data, 1);
-    HAL_Delay(1000);
+    HAL_Delay(50);
     HAL_GPIO_WritePin(dev->module_hal.CS_Port, dev->module_hal.CS_Pin, GPIO_PIN_SET);
 
     return PN532_STATUS_OK;

@@ -35,7 +35,7 @@ const uint8_t PN532_ACK[] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
 const uint8_t PN532_FRAME_START[] = {0x00, 0x00, 0xFF};
 
 #define PN532_FRAME_MAX_LENGTH              255
-#define PN532_DEFAULT_TIMEOUT               1000
+#define PN532_DEFAULT_TIMEOUT               100
 
 /**
   * @brief: Write a frame to the PN532 of at most length bytes in size.
@@ -200,7 +200,7 @@ int PN532_CallFunction(
 int PN532_GetFirmwareVersion(PN532* pn532, uint8_t* version) {
     // length of version: 4
     if (PN532_CallFunction(pn532, PN532_COMMAND_GETFIRMWAREVERSION,
-                           version, 4, NULL, 0, 500) == PN532_STATUS_ERROR) {
+                           version, 4, NULL, 0, 100) == PN532_STATUS_ERROR) {
         pn532->log("Failed to detect the PN532");
         return PN532_STATUS_ERROR;
     }

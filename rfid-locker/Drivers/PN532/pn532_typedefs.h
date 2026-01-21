@@ -6,7 +6,7 @@
 
 //#define PN532_USE_I2C
 #define PN532_USE_SPI
-#define PN532_MAX_INSTANCES		2
+#define PN532_MAX_INSTANCES		3
 
 typedef struct PN532 PN532;
 
