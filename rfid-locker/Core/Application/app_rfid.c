@@ -33,6 +33,7 @@ static uint16_t testLED_Pin [PN532_MAX_INSTANCES] = { \
 	LD3_Pin,
 };
 
+
 void rfid_Init(s_Locker *_locker)
 {
 	_locker->rfid.module_hal.hspi	= &hspi1;
@@ -65,6 +66,8 @@ void rfid_FSM(s_Locker *_locker)
 		case LOCKER_INIT:
 			/* Initialize Locker modules and PN532 modules */
 			rfid_Init(_locker);
+			servo_Init(&_locker->servo, _locker->index);
+			HAL_Delay(1000);
 			PN532_SPI_Init(&_locker->rfid);
 
 			if (PN532_GetFirmwareVersion(&_locker->rfid, buff) == PN532_STATUS_OK) {
@@ -153,6 +156,7 @@ void rfid_FSM(s_Locker *_locker)
 
 			/* Lock the Locker */
 			HAL_GPIO_WritePin(testLED_Port[_locker->index], testLED_Pin[_locker->index], GPIO_PIN_SET);
+			servo_Lock(&_locker->servo);
 
 			_locker->assigned = true;
 
@@ -165,6 +169,7 @@ void rfid_FSM(s_Locker *_locker)
 
 			/* Unlock the Locker, reset variables */
 			HAL_GPIO_WritePin(testLED_Port[_locker->index], testLED_Pin[_locker->index], GPIO_PIN_RESET);
+			servo_Unlock(&_locker->servo);
 
 			_locker->uid_len = 0;
 		    _locker->last_uid_len = 0;

@@ -3,6 +3,7 @@
 
 #include "main.h"
 #include "../../Drivers/PN532/pn532_stm32f1.h"
+#include "servo.h"
 #define LOCKER_OPERATION_TIMEOUT				3000
 
 typedef enum {
@@ -20,6 +21,7 @@ typedef enum {
 typedef struct {
 
 	PN532 rfid;
+	servo_module servo;
 
 	/* Book-keeping for each module */
 	uint8_t index;
